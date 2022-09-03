@@ -130,6 +130,7 @@ int main_exec(int argc, char **argv) {
     if (daemon_exec(daemon, op, value) != 0) {
         return 1;
     }
+    printf("OK");
     return 0;
 }
 
