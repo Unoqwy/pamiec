@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -28,12 +29,14 @@ struct sockaddr_un server_sockaddr(char *name) {
 int daemon_start(char *name) {
     int fd;
     if ((fd = socket(PF_UNIX, SOCK_DGRAM, 0)) < 0) {
+        fprintf(stderr, "Couldn't open socket: %s\n", strerror(errno));
         return -1;
     }
 
     struct sockaddr_un addr = server_sockaddr(name);
     unlink(addr.sun_path);
     if (bind(fd, (struct sockaddr * )&addr, sizeof(addr)) < 0) {
+        fprintf(stderr, "Couldn't bind daemon: %s\n", strerror(errno));
         return -1;
     }
 
@@ -64,6 +67,7 @@ int daemon_start(char *name) {
 int daemon_exec(char *name, char op, char *value) {
     int fd;
     if ((fd = socket(PF_UNIX, SOCK_DGRAM, 0)) < 0) {
+        fprintf(stderr, "Couldn't open socket: %s\n", strerror(errno));
         return -1;
     }
 
@@ -76,12 +80,12 @@ int daemon_exec(char *name, char op, char *value) {
     strncpy(&buf[1], value, value_len);
 
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        fprintf(stderr, "Couldn't connect to daemon\n");
+        fprintf(stderr, "Couldn't connect to daemon: %s\n", strerror(errno));
         return -1;
     }
 
     if (send(fd, buf, buf_len, 0) < 0) {
-        fprintf(stderr, "Couldn't send data to daemon\n");
+        fprintf(stderr, "Couldn't send data to daemon: %s\n", strerror(errno));
         return -1;
     }
 
