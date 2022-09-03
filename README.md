@@ -15,3 +15,5 @@ You can install the binary to a different location using `make DESTDIR=$HOME/.lo
 
 `pamiec daemon <sink> [-n <name>] [-d <duration>]` - Starts a daemon that will record audio from PA's `sink`. It may optionally have a `name` (use this if you want to record several sinks at once, for example to record Desktop audio + your microphone). It will keep the last `duration` seconds of audio in memory at any time (defaults to 30)
 
+`pamiec exec save <filename> [-D <daemon_name>]` - Saves the in-memory buffer to a wav file. The file path may be relative to the daemon directory or absolute. If you use named daemons, use the `-D` argument.
+
