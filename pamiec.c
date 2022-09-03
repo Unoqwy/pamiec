@@ -37,7 +37,7 @@ typedef struct WAVE_header {
     int data_size;
 } WAVE_header;
 
-static WAVE_header new_header(pa_sample_spec spec, short bitrate, int sample_count) {
+static WAVE_header new_header(pa_sample_spec spec, short bitrate, int data_size) {
     short byte_rate = bitrate / 8;
     WAVE_header header = {
         .riff_id = "RIFF",
@@ -52,12 +52,15 @@ static WAVE_header new_header(pa_sample_spec spec, short bitrate, int sample_cou
         .fmt_block_align = spec.channels * byte_rate,
         .fmt_bitrate = bitrate,
         .data_id = "data",
+        .data_size = data_size,
     };
-    header.data_size = sample_count * header.fmt_byte_rate;
     return header;
 }
 
 int main(int argc, char *argv[]) {
+    char *sink = "alsa_output.usb-SteelSeries_SteelSeries_Arctis_1_Wireless-00.analog-stereo.monitor";
+    int keep_seconds = 30;
+
     static const pa_sample_spec spec = {
         .format = PA_SAMPLE_S16LE,
         .rate = 44100,
@@ -73,7 +76,7 @@ int main(int argc, char *argv[]) {
         NULL,
         "Pamiec",
         PA_STREAM_RECORD,
-        "alsa_output.usb-SteelSeries_SteelSeries_Arctis_1_Wireless-00.analog-stereo.monitor",
+        sink,
         "Safekeeping the best moments",
         &spec,
         NULL,
@@ -86,36 +89,43 @@ int main(int argc, char *argv[]) {
     }
 
     int byte_rate = spec.rate * spec.channels * (spec_bitrate / 8);
-    int recordBufCapacity = byte_rate * 30;
-    uint8_t *recordBuf = calloc(recordBufCapacity, sizeof(uint8_t));
-    uint8_t *ptr = recordBuf;
+    int record_buf_capacity = byte_rate * keep_seconds;
+    uint8_t *record_buf = calloc(record_buf_capacity, sizeof(uint8_t));
+    uint8_t *record_ptr = record_buf;
 
     signal(SIGINT, sig_int_handler);
     while (running) {
-        uint8_t buf[PA_BUF_SIZE];
+        uint8_t read_buf[PA_BUF_SIZE];
 
-        if (pa_simple_read(sp, buf, sizeof(buf), &error) < 0) {
+        if (pa_simple_read(sp, read_buf, sizeof(read_buf), &error) < 0) {
             fprintf(stderr, "Unable to read audio data.\npa_simple_read() failed: %s\n", pa_strerror(error));
             goto cleanup;
         }
 
-        memcpy(ptr, &buf, sizeof(buf));
-        ptr += sizeof(buf);
+        int read_buf_len = sizeof(read_buf);
+        if (record_ptr + read_buf_len >= record_buf + record_buf_capacity) {
+            /* Shift the buffer to discard the oldest second of data and free enough space for a new second.
+             * An actual second may not have elapsed between two movements as PA may return more
+             * than a second at a time (in "packets" of PA_BUF_SIZE length) */
+            uint8_t *shift_from = record_buf + byte_rate; // first byte to keep
+            size_t data_len = (record_buf + record_buf_capacity) - shift_from;
+            memmove(record_buf, shift_from, data_len);
+            record_ptr = record_buf + data_len;
+        }
+
+        memcpy(record_ptr, &read_buf, read_buf_len);
+        record_ptr += read_buf_len;
     }
 
-    int bufLen = ptr - recordBuf;
-    int sample_count = bufLen / byte_rate;
-    WAVE_header header = new_header(spec, spec_bitrate, sample_count);
-
-    printf("seconds recorded: %d\n", sample_count);
-
     FILE *outf;
+    int buf_len = record_ptr - record_buf;
+    WAVE_header header = new_header(spec, spec_bitrate, buf_len);
 
     outf = fopen("output.wav", "wb");
     if (fwrite(&header, sizeof(header), 1, outf) < 1) {
         fprintf(stderr, "Unable to write audio file header to disk\nwrite failed: %s", strerror(errno));
     }
-    if (fwrite(recordBuf, sizeof(uint8_t), bufLen, outf) < bufLen) {
+    if (fwrite(record_buf, sizeof(uint8_t), buf_len, outf) < buf_len) {
         fprintf(stderr, "Unable to write audio file data to disk\nwrite failed: %s", strerror(errno));
     }
     fclose(outf);
@@ -124,7 +134,7 @@ int main(int argc, char *argv[]) {
     ret = 0;
 
 cleanup:
-    free(recordBuf);
+    free(record_buf);
     if (sp) {
         pa_simple_free(sp);
     }
