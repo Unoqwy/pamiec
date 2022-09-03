@@ -11,4 +11,6 @@
  * Note: It can only start if no other daemon already uses this name*/
 int daemon_start(char *name);
 
+int daemon_exec(char *name, char op, char *value);
+
 #endif
