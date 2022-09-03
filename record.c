@@ -32,6 +32,8 @@ void *record_loop(void *arg) {
     record_config config = *((record_config *) arg);
     free(arg);
 
+    printf("Recorder: Retaining the %d last seconds\n", config.retain_seconds);
+
     int error;
     sp = pa_simple_new(
         NULL,

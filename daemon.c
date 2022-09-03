@@ -39,7 +39,7 @@ int daemon_start(char *name) {
     struct sockaddr_un from;
     socklen_t from_len;
 
-    printf("Listening...\n");
+    printf("Listening as daemon \"%s\":\n", name);
     while ((len = recvfrom(fd, buf, BUF_SIZE, 0, (struct sockaddr *)&from, &from_len)) > 0) {
         char op = buf[0];
         buf[strcspn(buf, "\n")] = 0;
